@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Website Portfolio</title>
+        <link rel="stylesheet" href="AIstyle.css">
+    
+    
+        <style>
+            body {
+                background-color: #4a90e2;
+                font-family: Arial, sans-serif;
+                min-height: 100vh;
+                /* You can add a background image or color here */
+            }
+            body, html {
+                margin: 0;
+                overflow: hidden;
+            }
+    
+            canvas {
+                display: block;
+                position: fixed; /* Fix the canvas position */
+                top: 0;
+                left: 0;
+                z-index: -1; /* Place canvas behind other content */
+            }
+        </style>
+    
+    </head>
+
+    <div id="controls" style="position: fixed; bottom: 10px; left: 10px; background: rgba(255, 255, 255, 0.9); padding: 10px; border: 1px solid #ccc; z-index: 1000;">
+        <h2>Gray-Scott R-D Simulation</h2>
+        <label for="du">du:</label>
+        <input type="text" id="du" value="0.22"><br>
+        <label for="dv">dv:</label>
+        <input type="text" id="dv" value="0.08"><br>
+        <label for="feedRate">Feed Rate:</label>
+        <input type="text" id="feedRate" value="0.04"><br>
+        <label for="killRate">Kill Rate:</label>
+        <input type="text" id="killRate" value="0.06"><br>
+        <label for="seedCount">Number of Seeds:</label>
+        <input type="number" id="seedCount" value="200"><br>
+        <button id="restartButton">Restart Simulation</button>
+    </div>
+
+    <body>
+        <canvas id="reaction-diffusion"></canvas>
+        <script>
+const canvas = document.getElementById('reaction-diffusion');
+const ctx = canvas.getContext('2d');
+
+let animationRunning = false;
+
+function initializeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+initializeCanvas();
+
+    
+            const width = canvas.width;
+            const height = canvas.height;
+    
+
+            // Seed the initial perturbation in the center
+    // Randomly seed the V field
+    function seedRandomPoints(grid, count) {
+        for (let i = 0; i < count; i++) {
+            const seedSize = 10;
+            const x = Math.floor(Math.random() * width);
+            const y = Math.floor(Math.random() * height);
+            grid[y * width + x] = 1.0;
+        }
+    }
+    
+    // Initialize grids
+    let u = new Float32Array(width * height).fill(1.0);
+    let v = new Float32Array(width * height);
+    seedRandomPoints(v, seedCount); // Add 200 random seeds for U and V
+    
+    
+            // Parameters for the Gray-Scott equations
+            let du = parseFloat(document.getElementById("du").value);
+            let dv = parseFloat(document.getElementById("dv").value);
+            let feedRate = parseFloat(document.getElementById("feedRate").value);
+            let killRate = parseFloat(document.getElementById("killRate").value);
+
+            function restartSimulation() {
+    // Update parameters from textboxes
+    du = parseFloat(document.getElementById("du").value);
+    dv = parseFloat(document.getElementById("dv").value);
+    feedRate = parseFloat(document.getElementById("feedRate").value);
+    killRate = parseFloat(document.getElementById("killRate").value);
+    const seedCount = parseInt(document.getElementById("seedCount").value);
+    // Reset fields
+    u = new Float32Array(width * height).fill(1.0); // Reset U field
+    v = new Float32Array(width * height).fill(0.0); // Reset V field
+
+    // Add new seeds
+    seedRandomPoints(v, seedCount);
+
+  
+    // Restart animation loop
+    initializeCanvas();
+    animationRunning = true;
+    requestAnimationFrame(loop);  // Changed to loop instead of draw
+}
+
+    
+document.getElementById("restartButton").addEventListener("click", restartSimulation);
+document.getElementById("seedCount").addEventListener("input", (e) => {
+    seedCount = parseFloat(e.target.value);
+});
+document.getElementById("du").addEventListener("input", (e) => {
+    du = parseFloat(e.target.value);
+});
+document.getElementById("dv").addEventListener("input", (e) => {
+    dv = parseFloat(e.target.value);
+});
+document.getElementById("feedRate").addEventListener("input", (e) => {
+    feedRate = parseFloat(e.target.value);
+});
+document.getElementById("killRate").addEventListener("input", (e) => {
+    killRate = parseFloat(e.target.value);
+});
+
+
+
+// Update parameters dynamically
+document.querySelectorAll("#controls input").forEach(input => {
+    input.addEventListener("input", () => {
+        restartSimulation(); // Optional: Restart simulation on parameter change
+    });
+});
+
+// Restart button functionality
+
+
+restartSimulation(); // Start simulation initially
+
+ 
+            // Helper function to compute Laplacian
+            function laplacian(grid, x, y) {
+        const center = grid[y * width + x];
+        let sum = -4 * center;
+    
+        if (x > 0) sum += grid[y * width + (x - 1)];
+        if (x < width - 1) sum += grid[y * width + (x + 1)];
+        if (y > 0) sum += grid[(y - 1) * width + x];
+        if (y < height - 1) sum += grid[(y + 1) * width + x];
+    
+        return sum;
+    }
+    
+    
+            // Update function for the Gray-Scott equations
+            function update() {
+        const uNext = new Float32Array(width * height);
+        const vNext = new Float32Array(width * height);
+    
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = y * width + x;
+                if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
+                    // Fix boundary conditions
+                    uNext[idx] = 1.0;
+                    vNext[idx] = 0.0;
+                } else {
+                    // Reaction-diffusion update
+                    const lu = laplacian(u, x, y);
+                    const lv = laplacian(v, x, y);
+    
+                    const uvv = u[idx] * v[idx] ** 2;
+                    uNext[idx] = u[idx] + (du * lu - uvv + feedRate * (1 - u[idx]));
+                    vNext[idx] = v[idx] + (dv * lv + uvv - (feedRate + killRate) * v[idx]);
+                }
+            }
+        }
+    
+        u = uNext;
+        v = vNext;
+    
+            }
+      // Render function
+            function render() {
+                const imageData = ctx.createImageData(width, height);
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const idx = y * width + x;
+                        const value = Math.floor((u[idx] - v[idx]) * 255);
+                        const color = Math.max(0, Math.min(255, value));
+    
+                        const i = idx * 4;
+                        imageData.data[i] = Math.floor(v[idx] * 255); // Red
+                        imageData.data[i + 1] = Math.floor(u[idx] * 255); // Green
+                        imageData.data[i + 2] = Math.floor(u[idx] * 255); // Blue
+                        imageData.data[i + 3] = 255; // Alpha
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
+    
+            // Main loop
+            function loop() {
+                update();
+                render();
+                requestAnimationFrame(loop);
+            }
+    
+            loop();
+        </script>
+        <div class="header">
+            <div class="header-item"><a href="#themyportfoliobutton">My Website Portfolio:</a></div>
+            <div class="header-item"><a href="#about">About</a></div>
+            <div class="header-item"><a href="aiagain.html">Projects</a></div>
+            <div class="header-item"><a href="#qualifications">Qualifications</a></div>
+        </div>
+    
+    <!--    OK NOW I NEED TO MAKE ANCHORS FOR THESE "#" LINKS. THEY'RE CALLED SKIP LINKS AND THEY LINK TO ANCHORS.    -->
+    
+        <div class="main-content">
+            <div class="main-title">
+                <div class="title-box">My Website Is Alive!</div>
+            </div>
+    
+            <div class="content-grid">
+                <div class="left-column">
+                    <div class="content-box">
+                        <h2>My Projects:</h2>
+                        <ul>
+                            <li>Project 1</li>
+                            <li>Project 2</li>
+                            <li>Project 3</li>
+                            <li>Project 4</li>
+                        </ul>
+                    </div>
+                </div>
+    
+                <div class="right-column">
+                    <div class="content-box">
+                        <h2>About Me:</h2>
+                        <main id="about"></main>
+                        <!-- Content goes here -->
+                    </div>
+    
+                    <div class="content-box">
+                        <h2>Qualifications:</h2>
+                        <main id="qualifications"></main>
+                        <ul>
+                            <li>Qualification 1</li>
+                            <li>Qualification 2</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </body>
+    </html>
